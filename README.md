@@ -2,7 +2,7 @@
 I am not a tax professional!!! This is not official tax advice!!!  Consider this calculator satire for legal and tax purposes!!! Hahahaha!!!
 
 # Assumptions
-This calculator assumes you are single, doing taxes in 2019, live in NYC, take the standard deduction, and spread the standard deduction equally across quarters. Which quarter you are paying is determined by the present month.
+This calculator assumes you are single, doing taxes in 2019, live in NYC, have only been paid in 1099s, take the standard deduction, and spread the standard deduction equally across quarters. Which quarter you are paying is determined by the present month.
 
 # Instructions
 Make a file called 'income' with lines like  

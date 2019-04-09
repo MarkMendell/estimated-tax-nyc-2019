@@ -5,42 +5,59 @@ sum1()
 	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n+0}'; else echo 0; fi
 }
 pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
+p() { <"$1" cut -f $p; }
+cpad() { printf '[%sm%8.2f[0;39m\t%s\n' "$1" "$2" "$3"; }
 sumrate()
 {
 	<"$1" awk -v n=$2\
 		'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{printf "%0.2f\n", t}'
 }
-cpad() { printf '[%sm%8.2f[0;39m\t%s\n' "$1" "$2" "$3"; }
 
-for f in ss standarddeductionny rateny ratenycschool nycschoolfixed; do
+for f in ss ssapplicable ssdeductfractions standarddeductionny rateny\
+		 ratenycschool nycschoolfixed annualizations percents; do
 	test -f $f || err "calcny: missing $f"
 done
 income=$(sum1 income)
-awk "BEGIN{exit $income<100000}" &&
-	err 'calcny: rate might be wrong since you made more than 100k'
+awk "BEGIN{exit $income<80000}" &&
+	err 'calcny: rate might be wrong since you made more than 80k'
 pad $income income
 expenses=$(sum1 expenses)
 pad $expenses expenses
 netincome=$(echo "$income-$expenses" | bc)
 pad $netincome 'net income'
-ss=$(echo "scale=2;($netincome*$(cat ss))/1" | bc)
-pad $ss 'fed ss tax'
-agi=$(echo "scale=2;$netincome - $ss/2" | bc)
-pad $agi AGI
-sdp=$(echo "scale=2;$((
-		($(date +%y) > 19) ? 1 : ($(date +%m | sed 's,^0,,')+3)/4
-	))/4" | bc)
-sd=$(echo "scale=2;$(cat standarddeductionny)*$sdp" | bc)
-pad $sd "ny standard deduction ($sdp)"
-taxincome=$(echo "$agi-$sd" | bc)
-pad $taxincome 'taxable income'
-tax=$(sumrate rateny $taxincome)
-cpad 31 $tax 'ny tax'
+ssportion=$(cat ssapplicable)
+ssincome=$(echo "scale=2;$netincome*$ssportion" | bc)
+pad $ssincome "ss+medicare applicable income (*$ssportion)"
+if test $(date +%y) -ge 20; then p=4
+else p=$(m=$(date +%m | sed 's,^0,,'); echo $((m<5?1:m<7?2:m<10?3:4))); fi
+ssrate=$(p ss)
+annss=$(echo "scale=2;$ssincome*$ssrate" | bc)
+cpad 3 $annss "[3mannualized[0m ss+medicare tax (p$p: *$ssrate)"
+ssdeductfraction=$(p ssdeductfractions)
+ssdeduct=$(echo "scale=2;$annss/$ssdeductfraction" | bc)
+pad $ssdeduct "ss+medicare deduction (p$p: /$ssdeductfraction)"
+rawagi=$(echo "$netincome-$ssdeduct" | bc)
+pad $rawagi "p$p AGI"
+ann=$(p annualizations)
+annagi=$(echo "$rawagi*$ann" | bc)
+cpad 3 $annagi "[3mannualized[0m AGI (*$ann)"
+sd=$(cat standarddeductionny)
+pad $sd 'ny standard deduction'
+anntaxincome=$(echo "$annagi-$sd" | bc)
+cpad 3 $anntaxincome '[3mannualized[0m taxable income'
+anntaxforincome=$(sumrate rateny $anntaxincome)
+cpad '31;3' $anntaxforincome '[3mannualized[0m ny tax for income'
 nycschoolfixed=$(cat nycschoolfixed)
 cpad 32 $nycschoolfixed 'nyc school tax credit (fixed amount)'
-nycschoolrate=$(sumrate ratenycschool $taxincome)
-cpad 32 $nycschoolrate 'nyc school tax credit (rate reduction amount)'
+nycschoolrate=$(sumrate ratenycschool $anntaxincome)
+cpad '32;3' $nycschoolrate\
+	'[3mannualized[0m nyc school tax credit (rate reduction amount)'
+percent=$(p percents)
+anntax=$(echo "$anntaxforincome-$nycschoolfixed-$nycschoolrate" | bc)
+cpad '31;3' $anntax '[3mannualized[0m ny tax due'
+percent=$(p percents)
+tax=$(echo "scale=2;$anntax*$percent" | bc)
+cpad 31 $tax "p$p ny tax (*$percent)"
 paid=$(sum1 paidny)
 cpad 32 $paid paid
-cpad '31;1' $(echo "$tax-$nycschoolfixed-$nycschoolrate-$paid" | bc)\
-	'ny tax owed'
+cpad '31;1' $(echo "$tax-$paid" | bc) 'ny tax owed'

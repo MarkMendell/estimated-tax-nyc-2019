@@ -5,9 +5,11 @@ sum1()
 	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n+0}'; else echo 0; fi
 }
 pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
+p() { <"$1" cut -f $p; }
 cpad() { printf '[%sm%8.2f[0;39m\t%s\n' "$1" "$2" "$3"; }
 
-for f in ss standarddeductionfed ratefed; do
+for f in ss ssdeductfractions ssapplicable annualizations standarddeductionfed\
+			ratefed percents; do
 	test -f $f || err "calcfed: missing $f"
 done
 income=$(sum1 income)
@@ -17,24 +19,36 @@ expenses=$(sum1 expenses)
 pad $expenses expenses
 netincome=$(echo "$income-$expenses" | bc)
 pad $netincome 'net income'
-ss=$(echo "scale=2;($netincome*$(cat ss))/1" | bc)
-cpad 31 $ss 'ss tax'
-agi=$(echo "scale=2;$netincome - $ss/2" | bc)
-pad $agi AGI
-sdp=$(echo "scale=2;$((
-		($(date +%y) > 19) ? 1 : ($(date +%m | sed 's,^0,,')+3)/4
-	))/4" | bc)
-sd=$(echo "scale=2;$(cat standarddeductionfed)*$sdp" | bc)
-pad $sd "fed standard deduction ($sdp)"
-taxincome=$(echo "$agi-$sd" | bc)
-pad $taxincome 'taxable income'
-itax=$(
-		<ratefed awk -v n=$taxincome\
+ssportion=$(cat ssapplicable)
+ssincome=$(echo "scale=2;$netincome*$ssportion" | bc)
+pad $ssincome "ss+medicare applicable income (*$ssportion)"
+if test $(date +%y) -ge 20; then p=4
+else p=$(m=$(date +%m | sed 's,^0,,'); echo $((m<5?1:m<7?2:m<10?3:4))); fi
+ssrate=$(p ss)
+annss=$(echo "scale=2;$ssincome*$ssrate" | bc)
+cpad '31;3' $annss "[3mannualized[0m ss+medicare tax (p$p: *$ssrate)"
+ssdeductfraction=$(p ssdeductfractions)
+ssdeduct=$(echo "scale=2;$annss/$ssdeductfraction" | bc)
+pad $ssdeduct "ss+medicare deduction (p$p: /$ssdeductfraction)"
+rawagi=$(echo "$netincome-$ssdeduct" | bc)
+pad $rawagi "p$p AGI"
+ann=$(p annualizations)
+annagi=$(echo "$rawagi*$ann" | bc)
+cpad 3 $annagi "[3mannualized[0m AGI (*$ann)"
+sd=$(cat standarddeductionfed)
+pad $sd 'fed standard deduction'
+anntaxincome=$(echo "$annagi-$sd" | bc)
+cpad 3 $anntaxincome '[3mannualized[0m taxable income'
+annitax=$(
+		<ratefed awk -v n=$anntaxincome\
 			'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{print t+0}'
 	)
-cpad 31 $itax 'income tax'
-tax=$(echo "$ss+$itax" | bc)
-cpad 31 $tax 'total federal tax'
+cpad '31;3' $annitax '[3mannualized[0m income tax'
+anntax=$(echo "$annss+$annitax" | bc)
+cpad '31;3' $anntax 'total [3mannualized[0m federal tax'
+percent=$(p percents)
+tax=$(echo "scale=2;$anntax*$percent" | bc)
+cpad 31 $tax "total p$p federal tax (*$percent)"
 paid=$(sum1 paidfed)
 cpad 32 $paid paid
 cpad '31;1' $(echo "$tax-$paid" | bc) 'federal tax owed'

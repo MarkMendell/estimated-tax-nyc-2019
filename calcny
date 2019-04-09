@@ -2,7 +2,7 @@
 err() { echo "$1" >&2; exit 1; }
 sum1()
 {
-	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n}'; else echo 0; fi
+	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n+0}'; else echo 0; fi
 }
 pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
 sumrate()

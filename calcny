@@ -1,0 +1,46 @@
+#!/bin/sh
+err() { echo "$1" >&2; exit 1; }
+sum1()
+{
+	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n}'; else echo 0; fi
+}
+pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
+sumrate()
+{
+	<"$1" awk -v n=$2\
+		'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{printf "%0.2f\n", t}'
+}
+cpad() { printf '[%sm%8.2f[0;30m\t%s\n' "$1" "$2" "$3"; }
+
+for f in ss standarddeductionny rateny ratenycschool nycschoolfixed; do
+	test -f $f || err "calcny: missing $f"
+done
+income=$(sum1 income)
+awk "BEGIN{exit $income<100000}" &&
+	err 'calcny: rate might be wrong since you made more than 100k'
+pad $income income
+expenses=$(sum1 expenses)
+pad $expenses expenses
+netincome=$(echo "$income-$expenses" | bc)
+pad $netincome 'net income'
+ss=$(echo "scale=2;($netincome*$(cat ss))/1" | bc)
+pad $ss 'fed ss tax'
+agi=$(echo "scale=2;$netincome - $ss/2" | bc)
+pad $agi AGI
+sdp=$(echo "scale=2;$((
+		($(date +%y) > 19) ? 1 : ($(date +%m | sed 's,^0,,')+3)/4
+	))/4" | bc)
+sd=$(echo "scale=2;$(cat standarddeductionny)*$sdp" | bc)
+pad $sd "ny standard deduction ($sdp)"
+taxincome=$(echo "$agi-$sd" | bc)
+pad $taxincome 'taxable income'
+tax=$(sumrate rateny $taxincome)
+cpad 31 $tax 'ny tax'
+nycschoolfixed=$(cat nycschoolfixed)
+cpad 32 $nycschoolfixed 'nyc school tax credit (fixed amount)'
+nycschoolrate=$(sumrate ratenycschool $taxincome)
+cpad 32 $nycschoolrate 'nyc school tax credit (rate reduction amount)'
+paid=$(sum1 paidny)
+cpad 32 $paid paid
+cpad '31;1' $(echo "$tax-$nycschoolfixed-$nycschoolrate-$paid" | bc)\
+	'ny tax owed'

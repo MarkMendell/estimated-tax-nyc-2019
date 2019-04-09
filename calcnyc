@@ -1,0 +1,31 @@
+#!/bin/sh
+err() { echo "$1" >&2; exit 1; }
+sum1()
+{
+	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n}'; else echo 0; fi
+}
+pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
+cpad() { printf '[%sm%8.2f[0;30m\t%s\n' "$1" "$2" "$3"; }
+
+for f in ss ratenyc; do test -f $f || err "calcnyc: missing $f"; done
+income=$(sum1 income)
+pad $income income
+expenses=$(sum1 expenses)
+pad $expenses expenses
+netincome=$(echo "$income-$expenses" | bc)
+pad $netincome 'net income'
+ss=$(echo "scale=2;($netincome*$(cat ss))/1" | bc)
+pad $ss 'fed ss tax'
+taxincome=$(echo "scale=2;$netincome - $ss/2" | bc)
+pad $taxincome 'AGI / taxable income'
+tax=$(
+		<ratenyc awk -v n=$taxincome\
+			'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{printf "%0.2f\n", t}'
+	)
+cpad 31 $tax 'nyc tax'
+paid=$(sum1 paidnyc)
+cpad 32 $paid paid
+cpad '31;1' $(echo "$tax-$paid" | bc) 'nyc tax owed'
+awk "BEGIN{exit $taxincome<50000}" &&
+	echo\
+		"[1NOTE: Since your income is over 50k, you also owe MCTMT. This is not yet implemented.[0"

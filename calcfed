@@ -1,0 +1,40 @@
+#!/bin/sh
+err() { echo "$1" >&2; exit 1; }
+sum1()
+{
+	if test -f "$1"; then <"$1" awk '{n+=$1}END{print n}'; else echo 0; fi
+}
+pad() { printf '%8.2f\t%s\n' "$1" "$2"; }
+cpad() { printf '[%sm%8.2f[0;30m\t%s\n' "$1" "$2" "$3"; }
+
+for f in ss standarddeductionfed ratefed; do
+	test -f $f || err "calcfed: missing $f"
+done
+income=$(sum1 income)
+awk "BEGIN{exit $income<80000}" && err 'calcfed: ratefed not updated past 80'
+pad $income income
+expenses=$(sum1 expenses)
+pad $expenses expenses
+netincome=$(echo "$income-$expenses" | bc)
+pad $netincome 'net income'
+ss=$(echo "scale=2;($netincome*$(cat ss))/1" | bc)
+cpad 31 $ss 'ss tax'
+agi=$(echo "scale=2;$netincome - $ss/2" | bc)
+pad $agi AGI
+sdp=$(echo "scale=2;$((
+		($(date +%y) > 19) ? 1 : ($(date +%m | sed 's,^0,,')+3)/4
+	))/4" | bc)
+sd=$(echo "scale=2;$(cat standarddeductionfed)*$sdp" | bc)
+pad $sd "fed standard deduction ($sdp)"
+taxincome=$(echo "$agi-$sd" | bc)
+pad $taxincome 'taxable income'
+itax=$(
+		<ratefed awk -v n=$taxincome\
+			'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{print t}'
+	)
+cpad 31 $itax 'income tax'
+tax=$(echo "$ss+$itax" | bc)
+cpad 31 $tax 'total federal tax'
+paid=$(sum1 paidfed)
+cpad 32 $paid paid
+cpad '31;1' $(echo "$tax-$paid" | bc) 'federal tax owed'

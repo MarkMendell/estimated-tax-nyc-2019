@@ -25,3 +25,5 @@ Then make files 'paid', 'paidny', 'paidnyc' with lines like
 3891 q2
 ```
 after you make each quarter's tax payment.
+
+License: public domain

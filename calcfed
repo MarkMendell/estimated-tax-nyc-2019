@@ -30,7 +30,7 @@ taxincome=$(echo "$agi-$sd" | bc)
 pad $taxincome 'taxable income'
 itax=$(
 		<ratefed awk -v n=$taxincome\
-			'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{print t}'
+			'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{print t+0}'
 	)
 cpad 31 $itax 'income tax'
 tax=$(echo "$ss+$itax" | bc)

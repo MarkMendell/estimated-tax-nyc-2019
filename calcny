@@ -10,7 +10,7 @@ sumrate()
 	<"$1" awk -v n=$2\
 		'n<=0{exit}{t+=$2*(n>$1?$1:n);n-=$1}END{printf "%0.2f\n", t}'
 }
-cpad() { printf '[%sm%8.2f[0;30m\t%s\n' "$1" "$2" "$3"; }
+cpad() { printf '[%sm%8.2f[0;39m\t%s\n' "$1" "$2" "$3"; }
 
 for f in ss standarddeductionny rateny ratenycschool nycschoolfixed; do
 	test -f $f || err "calcny: missing $f"
